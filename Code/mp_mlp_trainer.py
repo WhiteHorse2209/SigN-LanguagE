@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 import numpy as np
 import pickle
@@ -6,13 +7,17 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.metrics import accuracy_score, classification_report
 from sklearn.neural_network import MLPClassifier
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV_PATH = os.path.join(SCRIPT_DIR, 'landmarks_data_2hands.csv')
+MODEL_PATH = os.path.join(SCRIPT_DIR, 'mp_mlp_model.pkl')
+
 def train_model():
     print("Loading landmark data...")
-    if not pd.io.common.file_exists('landmarks_data_2hands.csv'):
-        print("Error: 'landmarks_data_2hands.csv' not found. Run mp_dataset_creator.py first!")
+    if not os.path.exists(CSV_PATH):
+        print(f"Error: '{CSV_PATH}' not found. Run mp_dataset_creator.py or mp_record_live.py first!")
         return
 
-    data = pd.read_csv('landmarks_data_2hands.csv')
+    data = pd.read_csv(CSV_PATH)
     
     X = data.drop('label', axis=1).values
     y = data['label'].values
@@ -65,10 +70,10 @@ def train_model():
         'scaler': scaler,
         'label_encoder': le
     }
-    with open('mp_mlp_model.pkl', 'wb') as f:
+    with open(MODEL_PATH, 'wb') as f:
         pickle.dump(bundle, f)
     
-    print("[Success] MLP Model saved as 'mp_mlp_model.pkl'")
+    print(f"[Success] MLP Model saved as '{MODEL_PATH}'")
 
 if __name__ == "__main__":
     train_model()

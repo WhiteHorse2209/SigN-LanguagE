@@ -1,0 +1,213 @@
+# ==============================================================================
+# Sign Language NLP Training Corpus
+# Each non-empty, non-comment line is a training sentence/sequence.
+# Words are matched against the sign vocabulary (case-insensitive).
+# ==============================================================================
+
+# Greetings & Polite Openings
+Hello how you
+Hello how you Now
+Hello my friend
+Hello my friend how you
+Hello my family
+Hello friend good see you
+Hello what you want
+Hello what you see
+Hello where you go
+Hello when you go School
+Hello please help me
+Hello OK thanks you
+
+# "How" and Question Phrases
+how you
+how you Now
+how you friend
+how you family
+how you feel today
+how to SIGN
+how you Play
+how you go School
+
+# "What" Phrases
+what you want
+what you want Now
+what you want see
+what you want Play
+what you see
+what you see Now
+what you do friend
+what sign is that
+what you say
+
+# "Where" Phrases
+Where you go
+Where you go Now
+Where you Leave
+Where you Play
+Where MY School
+Where MY friend
+Where MY family
+Where you Born
+Where you see friend
+
+# "When" Phrases
+when you go
+when you go School
+when you Leave
+when you Leave Now
+when you Play
+when you Born
+when you see MY family
+when you help friend
+when I Born
+
+# "I Want" Constructions
+I want help
+I want help you
+I want help MY friend
+I want help MY family
+I want see you
+I want see you Now
+I want see MY friend
+I want see MY family
+I want see School
+I want go
+I want go Now
+I want go School
+I want go with friend
+I want go with family
+I want Play
+I want Play Now
+I want Play with friend
+I want SIGN
+I want SIGN with you
+I want Leave Now
+
+# "Please" Requests
+please help
+please help you
+please help me
+please help MY friend
+please help MY family
+please go Now
+please go School
+please see this
+please see MY friend
+please Play with me
+please SIGN now
+please tell me
+
+# "Love" & Relationships
+I Love you
+I Love you Now
+I Love MY family
+I Love MY friend
+I Love MY School
+I Love SIGN
+you Love MY family
+you Love MY friend
+you Love School
+family Love you
+friend Love you
+we Love School
+
+# "Help" Expressions
+you help me
+you help MY family
+you help MY friend
+I help you
+I help you Now
+I help MY family
+I help MY friend
+friend help family
+family help friend
+please help Now
+
+# "Go" & "Leave"
+I go Now
+I go School
+I go School Now
+I go with friend
+I go with family
+you go Now
+you go School
+you Leave Now
+I Leave Now
+I Leave School
+I Leave School Now
+friend Leave Now
+family go School
+
+# "See" & Observations
+I see you
+I see you Now
+I see MY friend
+I see MY family
+I see School
+you see MY friend
+you see MY family
+what you see Now
+good see you
+good see friend
+good see family
+
+# "Good", "OK", "Yes", "NO"
+good friend
+good family
+good School
+I good Now
+you good Now
+Yes I Love you
+Yes I want help
+Yes I want go
+Yes I want Play
+Yes I go School
+Yes I see you
+Yes good friend
+Yes OK Now
+NO I Leave
+NO I Leave Now
+NO I want Play
+NO please NO
+NO not Now
+OK I go Now
+OK I see you
+OK thanks you
+OK good friend
+OK understand
+
+# "Thanks you" Phrases
+Thanks you
+Thanks you friend
+Thanks you family
+Thanks you help me
+Thanks you very much
+Thanks you OK
+Thanks you see you
+
+# "SomeTimes" & Adverbs
+SomeTimes I Play
+SomeTimes I go School
+SomeTimes I Leave Now
+SomeTimes I see friend
+SomeTimes you help me
+SomeTimes family go School
+SomeTimes friend Play
+Now I go School
+Now I Leave
+Now I help you
+Now I see friend
+
+# Descriptive Phrases
+MY friend good
+MY family good
+MY School good
+MY School Small
+MY Brain Small
+MY Brain OK
+Monk Born when
+Born in School
+Small Brain OK
+Small School good
+friend and family
+family Love friend

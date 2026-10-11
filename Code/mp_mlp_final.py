@@ -6,6 +6,10 @@ import pyttsx3
 from threading import Thread
 import threading
 import ollama
+import os
+from nlp_predictor import NextWordPredictor, get_default_ollama_model
+
+OLLAMA_MODEL = get_default_ollama_model()
 
 # Global lock to prevent overlapping voice calls
 tts_lock = threading.Lock()
@@ -42,15 +46,17 @@ mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 
 # Load the MLP model bundle (model + scaler + label encoder)
+model_path = os.path.join(os.path.dirname(__file__), 'mp_mlp_model.pkl')
 try:
-    with open('mp_mlp_model.pkl', 'rb') as f:
+    with open(model_path, 'rb') as f:
         bundle = pickle.load(f)
     model = bundle['model']
     scaler = bundle['scaler']
     le = bundle['label_encoder']
     print(f"Model loaded! Knows signs: {list(le.classes_)}")
+    nlp = NextWordPredictor(vocab=list(le.classes_))
 except FileNotFoundError:
-    print("Error: mp_mlp_model.pkl not found. Run mp_mlp_trainer.py first!")
+    print(f"Error: {model_path} not found. Run mp_mlp_trainer.py first!")
     exit()
 
 def get_prediction(landmarks_row):
@@ -86,7 +92,7 @@ def form_sentence(words):
 
     try:
         response = ollama.chat(
-            model='qwen2:0.5b',
+            model=OLLAMA_MODEL,
             messages=[{'role': 'user', 'content': prompt}]
         )
         sentence = response['message']['content'].strip()
@@ -111,10 +117,11 @@ def recognize_realtime():
     print("  SIGN LANGUAGE INTERPRETER [MLP]")
     print("=" * 50)
     print("Controls:")
-    print("  SPACE = Add current word to sentence")
-    print("  S     = Form sentence and speak it")
-    print("  C     = Clear all words")
-    print("  Q     = Quit")
+    print("  1, 2, 3 = Autofill predicted next word before signing")
+    print("  SPACE   = Add current signed word to sentence")
+    print("  S       = Form sentence and speak it")
+    print("  C       = Clear all words")
+    print("  Q       = Quit")
     print("=" * 50)
     
     current_word = ""
@@ -130,6 +137,9 @@ def recognize_realtime():
 
         frame = cv2.flip(frame, 1)
         h, w, _ = frame.shape
+        
+        # Real-time NLP next-word prediction based on current sentence
+        next_preds = nlp.predict(sentence, top_k=3)
         
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         results = hands.process(rgb_frame)
@@ -167,6 +177,7 @@ def recognize_realtime():
                     if frames_stable == 25:
                         # Auto-add word to sentence (no duplicate at end)
                         if not sentence or sentence[-1] != pred_label:
+                            nlp.record_selection(sentence, pred_label)
                             sentence.append(pred_label)
                 else:
                     current_word = pred_label
@@ -204,20 +215,48 @@ def recognize_realtime():
             cv2.putText(frame, formed_sentence, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), 2)
             show_sentence_timer -= 1
 
+        # NLP Next-Word Suggestion Bar (above bottom bar)
+        cv2.rectangle(frame, (0, h - 110), (w, h - 70), (28, 22, 38), -1)
+        cv2.putText(frame, "SUGGESTIONS [1-3]:", (12, h - 86), cv2.FONT_HERSHEY_SIMPLEX, 0.44, (187, 134, 252), 1)
+        
+        # Draw pill badges for each suggestion
+        pill_x = 165
+        for i, wrd in enumerate(next_preds):
+            pill_text = f"[{i+1}] {wrd}"
+            is_match = (current_word == wrd)
+            bg_color = (0, 100, 60) if is_match else (45, 36, 62)
+            border_color = (0, 255, 150) if is_match else (3, 218, 198)
+            text_color = (255, 255, 255) if is_match else (3, 218, 198)
+            
+            t_w = cv2.getTextSize(pill_text, cv2.FONT_HERSHEY_SIMPLEX, 0.52, 2)[0][0]
+            if pill_x + t_w + 10 < w:
+                cv2.rectangle(frame, (pill_x - 6, h - 104), (pill_x + t_w + 6, h - 76), bg_color, -1)
+                cv2.rectangle(frame, (pill_x - 6, h - 104), (pill_x + t_w + 6, h - 76), border_color, 1)
+                cv2.putText(frame, pill_text, (pill_x, h - 85), cv2.FONT_HERSHEY_SIMPLEX, 0.52, text_color, 2)
+                pill_x += t_w + 20
+
         # Bottom bar - collected words
         words_str = " | ".join(sentence[-8:])  # Show last 8 words
         cv2.rectangle(frame, (0, h - 70), (w, h), (20, 20, 20), -1)
         cv2.putText(frame, "Words:", (10, h - 48), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (150, 150, 150), 1)
         cv2.putText(frame, words_str, (10, h - 22), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (255, 220, 50), 2)
         
-        # Controls hint at bottom-right
-        cv2.putText(frame, "SPACE:Add  S:Sentence  C:Clear  Q:Quit", (10, h - 75), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (130, 130, 130), 1)
+        # Controls hint
+        cv2.putText(frame, "1-3:AutoFill  SPACE:Add  S:Sentence  C:Clear  Q:Quit", (10, h - 115), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (180, 180, 180), 1)
 
         cv2.imshow("Sign Language Interpreter [MLP]", frame)
         
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
             break
+        elif key in [ord('1'), ord('2'), ord('3')]:  # 1-3 = Autofill predicted next word
+            idx = key - ord('1')
+            if idx < len(next_preds):
+                chosen_word = next_preds[idx]
+                if not sentence or sentence[-1] != chosen_word:
+                    nlp.record_selection(sentence, chosen_word)
+                    sentence.append(chosen_word)
+                    print(f"[Autofill {idx+1}] {chosen_word}")
         elif key == ord('c'):  # Clear all words
             sentence = []
             formed_sentence = ""
@@ -225,6 +264,7 @@ def recognize_realtime():
             print("[Cleared]")
         elif key == ord(' '):  # Space = manually add current word
             if current_word and (not sentence or sentence[-1] != current_word):
+                nlp.record_selection(sentence, current_word)
                 sentence.append(current_word)
                 print(f"[Added] {current_word}")
         elif key == ord('s'):  # S = Form sentence and speak it

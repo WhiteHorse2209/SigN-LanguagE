@@ -5,6 +5,10 @@ import pickle
 import threading
 import pyttsx3
 import ollama
+import os
+from nlp_predictor import NextWordPredictor, get_default_ollama_model
+
+OLLAMA_MODEL = get_default_ollama_model()
 
 # Set Streamlit Page Configuration
 st.set_page_config(
@@ -94,6 +98,19 @@ st.markdown("""
         transform: translateY(-2px);
         box-shadow: 0 5px 15px rgba(0,0,0,0.2);
     }
+    
+    .nlp-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, rgba(187, 134, 252, 0.2), rgba(3, 218, 198, 0.2));
+        border: 1px solid rgba(187, 134, 252, 0.4);
+        border-radius: 10px;
+        padding: 5px 10px;
+        font-size: 0.9rem;
+        color: #03dac6;
+        font-weight: 600;
+        margin-right: 6px;
+        margin-bottom: 6px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -137,8 +154,9 @@ def say_text_async(text):
 # Load models safely
 @st.cache_resource
 def get_ml_components():
+    model_path = os.path.join(os.path.dirname(__file__), 'mp_mlp_model.pkl')
     try:
-        with open('mp_mlp_model.pkl', 'rb') as f:
+        with open(model_path, 'rb') as f:
             bundle = pickle.load(f)
         m = bundle['model']
         s = bundle['scaler']
@@ -159,6 +177,12 @@ def get_ml_components():
 
 model, scaler, le, hands, mp_hands, mp_drawing, mp_drawing_styles = get_ml_components()
 
+@st.cache_resource
+def get_nlp_engine(vocab_classes):
+    return NextWordPredictor(vocab=list(vocab_classes) if vocab_classes else None)
+
+nlp_engine = get_nlp_engine(tuple(le.classes_)) if le is not None else get_nlp_engine(())
+
 def form_sentence_via_ollama(words):
     if not words: return ""
     # Filter duplicates
@@ -174,7 +198,7 @@ def form_sentence_via_ollama(words):
         f"Reply with ONLY the final sentence, nothing else."
     )
     try:
-        response = ollama.chat(model='qwen2:0.5b', messages=[{'role': 'user', 'content': prompt}])
+        response = ollama.chat(model=OLLAMA_MODEL, messages=[{'role': 'user', 'content': prompt}])
         sentence = response['message']['content'].strip(' "\'')
         if not sentence.endswith(('.', '!', '?')): sentence += '.'
         return sentence
@@ -218,6 +242,7 @@ with col_controls:
         if st.button("➕ Add Word", use_container_width=True):
             if st.session_state.current_word:
                 if not st.session_state.collected_words or st.session_state.collected_words[-1] != st.session_state.current_word:
+                    nlp_engine.record_selection(st.session_state.collected_words, st.session_state.current_word)
                     st.session_state.collected_words.append(st.session_state.current_word)
     with col_b:
         if st.button("🗑️ Clear All", use_container_width=True):
@@ -231,6 +256,27 @@ with col_controls:
                 st.session_state.formed_sentence = sent
                 say_text_async(sent)
                 
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # NLP Next-Word Prediction Suggestions Panel
+    st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+    st.markdown("<div class='status-text'>💡 Next Word Suggestions</div>", unsafe_allow_html=True)
+    next_preds = nlp_engine.predict(st.session_state.collected_words, top_k=3)
+    
+    # Context Preview
+    context_str = ' '.join(st.session_state.collected_words) if st.session_state.collected_words else '(Start signing)'
+    st.markdown(f"<div style='font-size:0.85rem; color:#aaa; margin-bottom:8px;'>Context: <span style='color:#bb86fc; font-weight:600;'>{context_str}</span> ➔ <span style='color:#03dac6; font-style:italic;'>[?]</span></div>", unsafe_allow_html=True)
+    
+    pred_cols = st.columns(len(next_preds))
+    for idx, p_w in enumerate(next_preds):
+        with pred_cols[idx]:
+            if st.button(f"⚡ {idx+1}. {p_w}", key=f"sugg_{idx}_{p_w}", use_container_width=True):
+                if not st.session_state.collected_words or st.session_state.collected_words[-1] != p_w:
+                    nlp_engine.record_selection(st.session_state.collected_words, p_w)
+                    st.session_state.collected_words.append(p_w)
+                    st.session_state.frames_stable = -15
+                    st.rerun()
+    st.caption("⚡ Click any suggestion chip above to insert immediately without signing.")
     st.markdown('</div>', unsafe_allow_html=True)
     
     # Prediction Status
@@ -312,6 +358,7 @@ else:
                         st.session_state.frames_stable += 1
                         if st.session_state.frames_stable == 20: 
                             if not st.session_state.collected_words or st.session_state.collected_words[-1] != pred_label:
+                                nlp_engine.record_selection(st.session_state.collected_words, pred_label)
                                 st.session_state.collected_words.append(pred_label)
                                 st.session_state.frames_stable = -15 # Cooldown period
                     else:
@@ -319,6 +366,25 @@ else:
                         st.session_state.frames_stable = 0
                 else:
                     st.session_state.frames_stable = 0
+            
+            # Draw NLP Suggestion HUD on live webcam frame
+            h_f, w_f, _ = frame.shape
+            cv2.rectangle(frame, (0, h_f - 46), (w_f, h_f), (28, 22, 38), -1)
+            cv2.putText(frame, "SUGGESTIONS:", (10, h_f - 16), cv2.FONT_HERSHEY_SIMPLEX, 0.46, (187, 134, 252), 1)
+            hud_preds = nlp_engine.predict(st.session_state.collected_words, top_k=3)
+            pill_x = 145
+            for i, wrd in enumerate(hud_preds):
+                pill_text = f"[{i+1}] {wrd}"
+                is_match = (display_text == wrd and conf_val > 0.75)
+                bg_col = (0, 100, 60) if is_match else (45, 36, 62)
+                bdr_col = (0, 255, 150) if is_match else (3, 218, 198)
+                txt_col = (255, 255, 255) if is_match else (3, 218, 198)
+                t_w = cv2.getTextSize(pill_text, cv2.FONT_HERSHEY_SIMPLEX, 0.52, 2)[0][0]
+                if pill_x + t_w + 10 < w_f:
+                    cv2.rectangle(frame, (pill_x - 5, h_f - 38), (pill_x + t_w + 5, h_f - 10), bg_col, -1)
+                    cv2.rectangle(frame, (pill_x - 5, h_f - 38), (pill_x + t_w + 5, h_f - 10), bdr_col, 1)
+                    cv2.putText(frame, pill_text, (pill_x, h_f - 19), cv2.FONT_HERSHEY_SIMPLEX, 0.52, txt_col, 2)
+                    pill_x += t_w + 18
             
             # Show Feed in UI container
             frame_disp = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)

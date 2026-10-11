@@ -13,7 +13,8 @@ hands = mp_hands.Hands(
 )
 mp_drawing = mp.solutions.drawing_utils
 
-CSV_FILE = 'landmarks_data_2hands.csv'
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV_FILE = os.path.join(SCRIPT_DIR, 'landmarks_data_2hands.csv')
 
 def ensure_csv_header():
     """Create the CSV with header if it doesn't exist."""
